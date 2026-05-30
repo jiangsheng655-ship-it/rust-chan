@@ -1,4 +1,4 @@
-name: Build DLL
+name: Build zen_stock DLL
 
 on:
   workflow_dispatch:
@@ -6,34 +6,31 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-
     strategy:
-      fail-fast: false # 一个失败不影响另一个继续跑
+      fail-fast: false
       matrix:
         target:
-          - i686-pc-windows-msvc   # 32位（你的目标）
-          - x86_64-pc-windows-msvc # 64位（备用）
+          - i686-pc-windows-msvc   # 32位 → 你的通达信主力使用
+          - x86_64-pc-windows-msvc # 64位 → 备用
 
     steps:
-      - name: Checkout code
+      - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Install Rust
+      - name: Install Rust & targets
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      # 用RUSTFLAGS环境变量直接传递静态链接参数，避免PowerShell命令问题
-      - name: Set static CRT flags
-        shell: bash
-        run: echo "RUSTFLAGS=-C target-feature=+crt-static -C link-arg:--enable-stdcall-fixup -C link-arg:-NODEFAULTLIB:MSVCRT" >> $GITHUB_ENV
-
-      - name: Build project
+      - name: Build release DLL (static CRT)
         run: cargo build --release --target ${{ matrix.target }}
+        env:
+          # 只静态链接运行库，不破坏原有代码、依赖、std、文件IO
+          RUSTFLAGS: -C target-feature=+crt-static
 
-      - name: Upload DLL
+      - name: Upload 32/64 bit DLL
         uses: actions/upload-artifact@v4
         with:
-          name: rust-chan-dll-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/*.dll
+          name: zen_stock-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/zen_stock.dll
