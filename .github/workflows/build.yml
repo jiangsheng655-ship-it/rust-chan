@@ -1,16 +1,17 @@
 name: Build DLL
 
 on:
-  workflow_dispatch: # 允许手动点击运行
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
 
     strategy:
+      fail-fast: false # 一个失败不影响另一个继续跑
       matrix:
         target:
-          - i686-pc-windows-msvc   # 32位（给你的通达信用）
+          - i686-pc-windows-msvc   # 32位（你的目标）
           - x86_64-pc-windows-msvc # 64位（备用）
 
     steps:
@@ -23,18 +24,10 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      # 关键：添加静态链接配置
-      - name: Create cargo config for static CRT
-        run: |
-          New-Item -Path .cargo -ItemType Directory -Force
-          @"
-          [target.'cfg(all(windows, target_env = "msvc"))']
-          rustflags = [
-              "-C", "target-feature=+crt-static",
-              "-C", "link-arg:--enable-stdcall-fixup",
-              "-C", "link-arg:-NODEFAULTLIB:MSVCRT"
-          ]
-          "@ | Out-File -FilePath .cargo/config.toml -Encoding utf8
+      # 用RUSTFLAGS环境变量直接传递静态链接参数，避免PowerShell命令问题
+      - name: Set static CRT flags
+        shell: bash
+        run: echo "RUSTFLAGS=-C target-feature=+crt-static -C link-arg:--enable-stdcall-fixup -C link-arg:-NODEFAULTLIB:MSVCRT" >> $GITHUB_ENV
 
       - name: Build project
         run: cargo build --release --target ${{ matrix.target }}
