@@ -10,12 +10,12 @@ jobs:
     strategy:
       matrix:
         target:
-          - i686-pc-windows-msvc   # 32位
-          - x86_64-pc-windows-msvc # 64位
+          - i686-pc-windows-msvc   # 32位（给你的通达信用）
+          - x86_64-pc-windows-msvc # 64位（备用）
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # 升级到 v4
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -23,11 +23,24 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
+      # 关键：添加静态链接配置
+      - name: Create cargo config for static CRT
+        run: |
+          New-Item -Path .cargo -ItemType Directory -Force
+          @"
+          [target.'cfg(all(windows, target_env = "msvc"))']
+          rustflags = [
+              "-C", "target-feature=+crt-static",
+              "-C", "link-arg:--enable-stdcall-fixup",
+              "-C", "link-arg:-NODEFAULTLIB:MSVCRT"
+          ]
+          "@ | Out-File -FilePath .cargo/config.toml -Encoding utf8
+
       - name: Build project
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Upload DLL
-        uses: actions/upload-artifact@v4 # 升级到 v4
+        uses: actions/upload-artifact@v4
         with:
           name: rust-chan-dll-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/*.dll
