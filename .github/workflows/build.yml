@@ -1,0 +1,33 @@
+name: Build DLL
+
+on:
+  workflow_dispatch: # 允许手动点击运行
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        target:
+          - i686-pc-windows-msvc   # 32位，大多数通达信版本用这个
+          - x86_64-pc-windows-msvc # 64位，新版或专业版用这个
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Build project
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload DLL
+        uses: actions/upload-artifact@v3
+        with:
+          name: rust-chan-dll-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/*.dll
