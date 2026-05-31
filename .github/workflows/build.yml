@@ -1,7 +1,9 @@
 name: Build zen_stock DLL
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 支持手动触发编译
+  push:
+    branches: [ "main", "master" ] # 提交代码到主分支时也自动编译
 
 jobs:
   build:
@@ -10,8 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - i686-pc-windows-msvc   # 32位 → 你的通达信主力使用
-          - x86_64-pc-windows-msvc # 64位 → 备用
+          - i686-pc-windows-msvc   # 32位：绝大多数通达信版本使用
+          - x86_64-pc-windows-msvc # 64位：最新版/专业版通达信使用
 
     steps:
       - name: Checkout source code
@@ -23,14 +25,27 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Build release DLL (static CRT)
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Build release DLL & Examples
+        # --examples 参数确保 Cargo.toml 里的 zen_picker 也会被编译
+        run: cargo build --release --target ${{ matrix.target }} --examples
         env:
-          # 只静态链接运行库，不破坏原有代码、依赖、std、文件IO
+          # +crt-static 保证 DLL 独立运行，不依赖 vcruntime140.dll
           RUSTFLAGS: -C target-feature=+crt-static
 
-      - name: Upload 32/64 bit DLL
+      - name: Organize Files
+        shell: bash
+        run: |
+          mkdir -p ./out/
+          # 复制主 DLL
+          cp target/${{ matrix.target }}/release/zen_stock.dll ./out/
+          # 复制 Example DLL (如果存在)
+          if [ -f target/${{ matrix.target }}/release/examples/zen_picker.dll ]; then
+            cp target/${{ matrix.target }}/release/examples/zen_picker.dll ./out/
+          fi
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zen_stock-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/zen_stock.dll
+          # 分别命名，方便下载后区分 32位和 64位
+          name: zen_stock_pack-${{ matrix.target }}
+          path: ./out/*.dll
