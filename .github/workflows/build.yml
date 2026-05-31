@@ -12,8 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - i686-pc-windows-msvc
-          - x86_64-pc-windows-msvc
+          - i686-pc-windows-msvc   # 32位
+          - x86_64-pc-windows-msvc # 64位
 
     steps:
       - name: Checkout source code
@@ -30,20 +30,21 @@ jobs:
         env:
           RUSTFLAGS: -C target-feature=+crt-static
 
-      - name: Organize Files (Smarter Version)
-        shell: bash
+      - name: Organize Files (Direct Copy)
+        # 使用 PowerShell 确保 100% 抓取到所有生成的 DLL
+        shell: pwsh
         run: |
-          mkdir -p ./out/
-          # 自动寻找 target 目录下所有的 .dll 文件并拷贝到 out 文件夹
-          # 这样不管你的项目叫什么名字，都能抓到生成的 DLL
-          find target/${{ matrix.target }}/release -maxdepth 2 -name "*.dll" -exec cp {} ./out/ \;
+          New-Item -ItemType Directory -Force -Path ./out/
+          # 抓取根 release 目录下的主 DLL (zen_stock.dll)
+          Copy-Item "target/${{ matrix.target }}/release/*.dll" -Destination ./out/ -ErrorAction SilentlyContinue
+          # 抓取 examples 目录下的 DLL (zen_picker.dll)
+          Copy-Item "target/${{ matrix.target }}/release/examples/*.dll" -Destination ./out/ -ErrorAction SilentlyContinue
           
-          # 列出找到的文件，方便我们在日志里确认
-          echo "Found the following DLLs:"
-          ls ./out/
+          Write-Host "Files found in out directory:"
+          Get-ChildItem ./out/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: tdx-plugins-${{ matrix.target }}
-          path: ./out/*.dll
+          path: out/*.dll
