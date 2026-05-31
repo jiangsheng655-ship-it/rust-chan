@@ -12,8 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - i686-pc-windows-msvc   # 32位
-          - x86_64-pc-windows-msvc # 64位
+          - i686-pc-windows-msvc   # 32位 (主攻)
+          - x86_64-pc-windows-msvc # 64位 (备用)
 
     steps:
       - name: Checkout source code
@@ -25,26 +25,28 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Build release DLL & Examples
+      - name: Build All (Lib & Examples)
+        # 这一步会同时编译 lib.rs 和 picker.rs
         run: cargo build --release --target ${{ matrix.target }} --examples
         env:
           RUSTFLAGS: -C target-feature=+crt-static
 
-      - name: Organize Files (Direct Copy)
-        # 使用 PowerShell 确保 100% 抓取到所有生成的 DLL
+      - name: Organize Files (Recursive Search)
+        # 使用 PowerShell 递归搜索所有 DLL，一个都不放过
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path ./out/
-          # 抓取根 release 目录下的主 DLL (zen_stock.dll)
-          Copy-Item "target/${{ matrix.target }}/release/*.dll" -Destination ./out/ -ErrorAction SilentlyContinue
-          # 抓取 examples 目录下的 DLL (zen_picker.dll)
-          Copy-Item "target/${{ matrix.target }}/release/examples/*.dll" -Destination ./out/ -ErrorAction SilentlyContinue
+          # 在 target 目录下寻找所有 .dll 文件并拷贝到 out 目录
+          Get-ChildItem -Path "target/${{ matrix.target }}/release/" -Filter "*.dll" -Recurse | ForEach-Object {
+              Copy-Item $_.FullName -Destination "./out/" -Force
+              Write-Host "Found and copied: $($_.Name)"
+          }
           
-          Write-Host "Files found in out directory:"
+          Write-Host "--- Final Files in Out ---"
           Get-ChildItem ./out/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tdx-plugins-${{ matrix.target }}
+          name: tdx-all-dlls-${{ matrix.target }}
           path: out/*.dll
