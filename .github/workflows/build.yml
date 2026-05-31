@@ -9,44 +9,50 @@ jobs:
   build:
     runs-on: windows-latest
     strategy:
-      fail-fast: false
       matrix:
         target:
-          - i686-pc-windows-msvc   # 32位 (主攻)
-          - x86_64-pc-windows-msvc # 64位 (备用)
+          - i686-pc-windows-msvc # 32位 (通达信通用)
 
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Install Rust & targets
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Build All (Lib & Examples)
-        # 这一步会同时编译 lib.rs 和 picker.rs
-        run: cargo build --release --target ${{ matrix.target }} --examples
+      - name: Build All
+        # 同时编译 lib 和 examples
+        run: cargo build --release --target ${{ matrix.target }} --all-targets
         env:
           RUSTFLAGS: -C target-feature=+crt-static
 
-      - name: Organize Files (Recursive Search)
-        # 使用 PowerShell 递归搜索所有 DLL，一个都不放过
+      - name: Organize Files
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path ./out/
-          # 在 target 目录下寻找所有 .dll 文件并拷贝到 out 目录
-          Get-ChildItem -Path "target/${{ matrix.target }}/release/" -Filter "*.dll" -Recurse | ForEach-Object {
-              Copy-Item $_.FullName -Destination "./out/" -Force
-              Write-Host "Found and copied: $($_.Name)"
-          }
           
-          Write-Host "--- Final Files in Out ---"
+          # 1. 抓取主库 zen_stock.dll
+          if (Test-Path "target/${{ matrix.target }}/release/zen_stock.dll") {
+              Copy-Item "target/${{ matrix.target }}/release/zen_stock.dll" -Destination "./out/zen_stock.dll"
+              Write-Host "Success: zen_stock.dll found."
+          } else {
+              Write-Error "Error: zen_stock.dll NOT found!"
+          }
+
+          # 2. 抓取例子 zen_picker.dll
+          if (Test-Path "target/${{ matrix.target }}/release/examples/zen_picker.dll") {
+              Copy-Item "target/${{ matrix.target }}/release/examples/zen_picker.dll" -Destination "./out/zen_picker.dll"
+              Write-Host "Success: zen_picker.dll found."
+          }
+
+          Write-Host "Final files in out folder:"
           Get-ChildItem ./out/
 
-      - name: Upload Artifacts
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: tdx-all-dlls-${{ matrix.target }}
+          name: tdx-plugins-32bit
           path: out/*.dll
