@@ -3,18 +3,20 @@ name = "zen_stock"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 encoding = "0.2"
 
 [lib]
+name = "zen_stock"     # 强制库文件名为 zen_stock
+path = "src/lib.rs"    # 强制指向主程序
 crate-type = ["cdylib"]
 
 [[example]]
 name = "zen_picker"
+path = "src/picker.rs"
 crate-type = ["cdylib"]
-path="src/picker.rs"
 
 [profile.release]
 lto = true
+opt-level = "s"        # 优化体积，适合 DLL
+panic = "abort"        # 发生错误时直接退出，防止通达信进入复杂异常状态
